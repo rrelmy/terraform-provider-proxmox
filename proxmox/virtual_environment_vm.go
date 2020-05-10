@@ -7,14 +7,52 @@ package proxmox
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
+const (
+	getVMIDStep = 1
+)
+
+var (
+	getVMIDCounter      = -1
+	getVMIDCounterMutex = &sync.Mutex{}
+)
+
 // CloneVM clones a virtual machine.
-func (c *VirtualEnvironmentClient) CloneVM(nodeName string, vmID int, d *VirtualEnvironmentVMCloneRequestBody) error {
-	return c.DoRequest(hmPOST, fmt.Sprintf("nodes/%s/qemu/%d/clone", url.PathEscape(nodeName), vmID), d, nil)
+func (c *VirtualEnvironmentClient) CloneVM(nodeName string, vmID int, retries int, d *VirtualEnvironmentVMCloneRequestBody) error {
+	resBody := &VirtualEnvironmentVMMoveDiskResponseBody{}
+	var err error
+
+	// just a guard in case someone sets retries to 0 unknowingly
+	if retries <= 0 {
+		retries = 1
+	}
+
+	for i := 0; i < retries; i++ {
+		err = c.DoRequest(hmPOST, fmt.Sprintf("nodes/%s/qemu/%d/clone", url.PathEscape(nodeName), vmID), d, resBody)
+
+		if err != nil {
+			return err
+		}
+
+		if resBody.Data == nil {
+			return errors.New("The server did not include a data object in the response")
+		}
+
+		err = c.WaitForNodeTask(nodeName, *resBody.Data, 1800, 5)
+
+		if err == nil {
+			return nil
+		}
+		time.Sleep(10 * time.Second)
+	}
+
+	return err
 }
 
 // CreateVM creates a virtual machine.
@@ -45,30 +83,46 @@ func (c *VirtualEnvironmentClient) GetVM(nodeName string, vmID int) (*VirtualEnv
 
 // GetVMID retrieves the next available VM identifier.
 func (c *VirtualEnvironmentClient) GetVMID() (*int, error) {
-	nodes, err := c.ListNodes()
+	getVMIDCounterMutex.Lock()
+	defer getVMIDCounterMutex.Unlock()
 
-	if err != nil {
-		return nil, err
+	if getVMIDCounter < 0 {
+		nextVMID, err := c.GetClusterNextID(nil)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if nextVMID == nil {
+			return nil, errors.New("Unable to retrieve the next available VM identifier")
+		}
+
+		getVMIDCounter = *nextVMID + getVMIDStep
+
+		log.Printf("[DEBUG] Determined next available VM identifier to be %d", *nextVMID)
+
+		return nextVMID, nil
 	}
 
-	vmID := 100
+	vmID := getVMIDCounter
 
-VMID:
 	for vmID <= 2147483637 {
-		for _, n := range nodes {
-			err := c.DoRequest(hmGET, fmt.Sprintf("nodes/%s/qemu/%d/status/current", url.PathEscape(n.Name), vmID), nil, nil)
+		_, err := c.GetClusterNextID(&vmID)
 
-			if err == nil {
-				vmID += 5
+		if err != nil {
+			vmID += getVMIDStep
 
-				continue VMID
-			}
+			continue
 		}
+
+		getVMIDCounter = vmID + getVMIDStep
+
+		log.Printf("[DEBUG] Determined next available VM identifier to be %d", vmID)
 
 		return &vmID, nil
 	}
 
-	return nil, errors.New("Unable to retrieve the next available VM identifier")
+	return nil, errors.New("Unable to determine the next available VM identifier")
 }
 
 // GetVMNetworkInterfacesFromAgent retrieves the network interfaces reported by the QEMU agent.
@@ -176,7 +230,16 @@ func (c *VirtualEnvironmentClient) RebootVMAsync(nodeName string, vmID int, d *V
 
 // ResizeVMDisk resizes a virtual machine disk.
 func (c *VirtualEnvironmentClient) ResizeVMDisk(nodeName string, vmID int, d *VirtualEnvironmentVMResizeDiskRequestBody) error {
-	return c.DoRequest(hmPUT, fmt.Sprintf("nodes/%s/qemu/%d/resize", url.PathEscape(nodeName), vmID), d, nil)
+	var err error
+	for i := 0; i < 5; i++ {
+		err = c.DoRequest(hmPUT, fmt.Sprintf("nodes/%s/qemu/%d/resize", url.PathEscape(nodeName), vmID), d, nil)
+		if err == nil {
+			return nil
+		}
+		log.Printf("[DEBUG] resize disk failed, retry nr: %d", i)
+		time.Sleep(5 * time.Second)
+	}
+	return err
 }
 
 // ShutdownVM shuts down a virtual machine.

@@ -2,11 +2,15 @@
 
 ENHANCEMENTS:
 
+* provider/configuration: Add `virtual_environment.otp` argument for TOTP support
 * resource/virtual_environment_vm: Add support for changing `disk.datastore_id` and `disk.size` without re-creating the VM
 
 BUG FIXES:
 
 * library/virtual_environment_nodes: Fix node IP address format
+* resource/virtual_environment_container: Fix VM ID collision when `vm_id` is not specified
+* resource/virtual_environment_vm: Fix VM ID collision when `vm_id` is not specified
+* resource/virtual_environment_vm: Fix disk import issue when importing from directory-based datastores
 
 WORKAROUNDS:
 

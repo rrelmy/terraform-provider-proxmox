@@ -36,7 +36,7 @@ func (c *VirtualEnvironmentClient) ExecuteNodeCommands(nodeName string, commands
 	output, err := sshSession.CombinedOutput(
 		fmt.Sprintf(
 			"/bin/bash -c '%s'",
-			strings.ReplaceAll(strings.Join(commands, " && "), "'", "'\"'\"'"),
+			strings.ReplaceAll(strings.Join(commands, " && \\\n"), "'", "'\"'\"'"),
 		),
 	)
 
@@ -165,7 +165,14 @@ func (c *VirtualEnvironmentClient) WaitForNodeTask(nodeName string, upid string,
 		if int64(timeElapsed.Seconds())%timeDelay == 0 {
 			status, err := c.GetNodeTaskStatus(nodeName, upid)
 
-			if err == nil && status.Status != "running" {
+			if err != nil {
+				return err
+			}
+
+			if status.Status != "running" {
+				if status.ExitCode != "OK" {
+					return fmt.Errorf("Task \"%s\" on node \"%s\" failed to complete with error: %s", upid, nodeName, status.ExitCode)
+				}
 				return nil
 			}
 
