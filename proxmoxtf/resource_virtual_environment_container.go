@@ -28,6 +28,7 @@ const (
 	dvResourceVirtualEnvironmentContainerInitializationIPConfigIPv6Gateway = ""
 	dvResourceVirtualEnvironmentContainerInitializationHostname            = ""
 	dvResourceVirtualEnvironmentContainerInitializationUserAccountPassword = ""
+	dvResourceVirtualEnvironmentContainerInitializationUnprivileged        = false
 	dvResourceVirtualEnvironmentContainerCPUArchitecture                   = "amd64"
 	dvResourceVirtualEnvironmentContainerCPUCores                          = 1
 	dvResourceVirtualEnvironmentContainerCPUUnits                          = 1024
@@ -79,6 +80,7 @@ const (
 	mkResourceVirtualEnvironmentContainerInitializationUserAccountKeys     = "keys"
 	mkResourceVirtualEnvironmentContainerInitializationUserAccountPassword = "password"
 	mkResourceVirtualEnvironmentContainerInitializationUserAccountUsername = "username"
+	mkResourceVirtualEnvironmentContainerInitializationUnprivileged        = "unprivileged"
 	mkResourceVirtualEnvironmentContainerMemory                            = "memory"
 	mkResourceVirtualEnvironmentContainerMemoryDedicated                   = "dedicated"
 	mkResourceVirtualEnvironmentContainerMemorySwap                        = "swap"
@@ -392,6 +394,13 @@ func resourceVirtualEnvironmentContainer() *schema.Resource {
 							},
 							MaxItems: 1,
 							MinItems: 0,
+						},
+						mkResourceVirtualEnvironmentContainerInitializationUnprivileged: {
+							Type:        schema.TypeBool,
+							Description: "Whether to run as unprivileged user",
+							Optional:    true,
+							ForceNew:    true,
+							Default:     dvResourceVirtualEnvironmentContainerInitializationUnprivileged,
 						},
 					},
 				},
@@ -926,6 +935,7 @@ func resourceVirtualEnvironmentContainerCreateCustom(d *schema.ResourceData, m i
 	initializationIPConfigIPv6Gateway := []string{}
 	initializationUserAccountKeys := proxmox.VirtualEnvironmentContainerCustomSSHKeys{}
 	initializationUserAccountPassword := dvResourceVirtualEnvironmentContainerInitializationUserAccountPassword
+	initializationUnprivileged := proxmox.CustomBool(false) // TODO get from block instead of hardcode
 
 	if len(initialization) > 0 {
 		initializationBlock := initialization[0].(map[string]interface{})
@@ -981,6 +991,8 @@ func resourceVirtualEnvironmentContainerCreateCustom(d *schema.ResourceData, m i
 
 			initializationUserAccountPassword = initializationUserAccountBlock[mkResourceVirtualEnvironmentContainerInitializationUserAccountPassword].(string)
 		}
+
+		initializationUnprivileged = proxmox.CustomBool(initializationBlock[mkResourceVirtualEnvironmentContainerInitializationUnprivileged].(bool))
 	}
 
 	memoryBlock, err := getSchemaBlock(resource, d, m, []string{mkResourceVirtualEnvironmentContainerMemory}, 0, true)
@@ -1089,6 +1101,7 @@ func resourceVirtualEnvironmentContainerCreateCustom(d *schema.ResourceData, m i
 		Template:             &template,
 		TTY:                  &consoleTTYCount,
 		VMID:                 &vmID,
+		Unprivileged:         &initializationUnprivileged,
 	}
 
 	if description != "" {
@@ -1398,6 +1411,8 @@ func resourceVirtualEnvironmentContainerRead(d *schema.ResourceData, m interface
 	} else {
 		initialization[mkResourceVirtualEnvironmentContainerInitializationHostname] = ""
 	}
+
+	initialization[mkResourceVirtualEnvironmentContainerInitializationUnprivileged] = *containerConfig.Unprivileged
 
 	ipConfigList := []interface{}{}
 	networkInterfaceArray := []*proxmox.VirtualEnvironmentContainerCustomNetworkInterface{

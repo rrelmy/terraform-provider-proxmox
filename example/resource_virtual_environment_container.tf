@@ -6,7 +6,8 @@ resource "proxmox_virtual_environment_container" "example_template" {
       server = "1.1.1.1"
     }
 
-    hostname = "terraform-provider-proxmox-example-lxc-template"
+    hostname     = "terraform-provider-proxmox-example-lxc-template"
+    unprivileged = true
 
     ip_config {
       ipv4 {
