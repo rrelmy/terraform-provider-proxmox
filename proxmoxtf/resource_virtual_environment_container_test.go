@@ -101,13 +101,15 @@ func TestResourceVirtualEnvironmentContainerSchema(t *testing.T) {
 		mkResourceVirtualEnvironmentContainerInitializationHostname,
 		mkResourceVirtualEnvironmentContainerInitializationIPConfig,
 		mkResourceVirtualEnvironmentContainerInitializationUserAccount,
+		mkResourceVirtualEnvironmentContainerInitializationUnprivileged,
 	})
 
 	testValueTypes(t, initializationSchema, map[string]schema.ValueType{
-		mkResourceVirtualEnvironmentContainerInitializationDNS:         schema.TypeList,
-		mkResourceVirtualEnvironmentContainerInitializationHostname:    schema.TypeString,
-		mkResourceVirtualEnvironmentContainerInitializationIPConfig:    schema.TypeList,
-		mkResourceVirtualEnvironmentContainerInitializationUserAccount: schema.TypeList,
+		mkResourceVirtualEnvironmentContainerInitializationDNS:          schema.TypeList,
+		mkResourceVirtualEnvironmentContainerInitializationHostname:     schema.TypeString,
+		mkResourceVirtualEnvironmentContainerInitializationIPConfig:     schema.TypeList,
+		mkResourceVirtualEnvironmentContainerInitializationUserAccount:  schema.TypeList,
+		mkResourceVirtualEnvironmentContainerInitializationUnprivileged: schema.TypeBool,
 	})
 
 	initializationDNSSchema := testNestedSchemaExistence(t, initializationSchema, mkResourceVirtualEnvironmentContainerInitializationDNS)

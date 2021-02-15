@@ -17,8 +17,9 @@ Manages a container.
 resource "proxmox_virtual_environment_container" "ubuntu_container" {
   description = "Managed by Terraform"
 
-  node_name = "first-node"
-  vm_id     = 1234
+  node_name    = "first-node"
+  vm_id        = 1234
+  unprivileged = true
 
   initialization {
     hostname = "terraform-provider-proxmox-ubuntu-container"
@@ -120,6 +121,7 @@ output "ubuntu_container_public_key" {
     * `user_account` - (Optional) The user account configuration.
         * `keys` - (Optional) The SSH keys for the root account.
         * `password` - (Optional) The password for the root account.
+    * `unprivileged` - (Optional) Whether to run as unprivileged user (defaults to `false`)
 * `memory` - (Optional) The memory configuration.
     * `dedicated` - (Optional) The dedicated memory in megabytes (defaults to `512`).
     * `swap` - (Optional) The swap size in megabytes (defaults to `0`).
